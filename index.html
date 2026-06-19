@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PolyPlayers</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI',sans-serif; background:#0f0f1a; color:#fff; min-height:100vh; }
+.screen { display:none; min-height:100vh; padding:16px; flex-direction:column; }
+.screen.active { display:flex; }
+
+/* AUTH */
+#authScreen { align-items:center; justify-content:center; }
+.logo { font-size:2.5rem; font-weight:900; margin-bottom:6px; }
+.logo span { color:#6c63ff; }
+.tagline { color:#888; margin-bottom:32px; font-size:0.9rem; }
+.auth-box { background:#1a1a2e; border:1px solid #2a2a4a; border-radius:16px; padding:28px; width:100%; max-width:360px; }
+.auth-tabs { display:flex; gap:8px; margin-bottom:20px; }
+.auth-tab { flex:1; padding:10px; border:none; border-radius:8px; cursor:pointer; font-size:0.9rem; font-weight:600; background:#0f0f1a; color:#888; }
+.auth-tab.active { background:#6c63ff; color:#fff; }
+.inp-grp { margin-bottom:14px; }
+.inp-grp label { display:block; font-size:0.8rem; color:#888; margin-bottom:5px; }
+.inp-grp input { width:100%; padding:11px 14px; background:#0f0f1a; border:1px solid #2a2a4a; border-radius:8px; color:#fff; font-size:1rem; outline:none; }
+.inp-grp input:focus { border-color:#6c63ff; }
+.btn { width:100%; padding:12px; border:none; border-radius:10px; font-size:1rem; font-weight:700; cursor:pointer; }
+.btn-primary { background:#6c63ff; color:#fff; }
+.btn-secondary { background:#2a2a4a; color:#fff; }
+.btn-danger { background:#e74c3c; color:#fff; }
+.err { color:#e74c3c; font-size:0.82rem; margin-top:10px; text-align:center; min-height:18px; }
+
+/* MAIN APP */
+#appScreen { padding:0; }
+.app-layout { display:flex; height:100vh; }
+
+/* SIDEBAR */
+.sidebar { width:72px; background:#12122a; border-right:1px solid #2a2a4a; display:flex; flex-direction:column; align-items:center; padding:16px 0; gap:8px; flex-shrink:0; }
+.nav-btn { width:48px; height:48px; border-radius:14px; border:none; background:transparent; color:#555; cursor:pointer; font-size:1.4rem; display:flex; align-items:center; justify-content:center; position:relative; }
+.nav-btn.active, .nav-btn:hover { background:#6c63ff22; color:#6c63ff; }
+.nav-badge { position:absolute; top:6px; right:6px; background:#e74c3c; color:#fff; font-size:0.6rem; font-weight:900; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+
+/* PANELS */
+.panel { flex:1; display:none; flex-direction:column; overflow:hidden; }
+.panel.active { display:flex; }
+.panel-header { padding:16px 20px; border-bottom:1px solid #2a2a4a; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+.panel-header h2 { font-size:1.1rem; font-weight:800; }
+.panel-content { flex:1; overflow-y:auto; padding:16px; }
+
+/* PROFILE PANEL */
+.profile-card { background:#1a1a2e; border:1px solid #2a2a4a; border-radius:14px; padding:20px; margin-bottom:16px; text-align:center; }
+.avatar { width:64px; height:64px; border-radius:50%; background:#6c63ff; display:flex; align-items:center; justify-content:center; font-size:1.8rem; font-weight:900; margin:0 auto 12px; }
+.profile-name { font-size:1.2rem; font-weight:800; }
+.profile-polyid { color:#6c63ff; font-size:0.85rem; margin-top:4px; }
+.stats-row { display:flex; gap:10px; margin-top:14px; }
+.stat { flex:1; background:#0f0f1a; border-radius:10px; padding:10px; text-align:center; }
+.stat .val { font-size:1.4rem; font-weight:900; }
+.stat .lbl { font-size:0.7rem; color:#888; }
+.stat.w .val { color:#2ecc71; }
+.stat.l .val { color:#e74c3c; }
+.stat.d .val { color:#f39c12; }
+.share-row { display:flex; gap:10px; align-items:center; background:#1a1a2e; border:1px solid #2a2a4a; border-radius:12px; padding:14px 16px; }
+.share-row .info { flex:1; }
+.share-row .lbl { font-size:0.75rem; color:#888; }
+.share-row .id { font-weight:700; color:#6c63ff; font-size:1rem; }
+.copy-btn { background:#6c63ff22; border:1px solid #6c63ff44; color:#6c63ff; padding:8px 14px; border-radius:8px; cursor:pointer; font-size:0.82rem; font-weight:600; white-space:nowrap; }
+
+/* FRIENDS PANEL */
+.add-friend-box { display:flex; gap:8px; margin-bottom:16px; }
+.add-friend-box input { flex:1; padding:10px 14px; background:#1a1a2e; border:1px solid #2a2a4a; border-radius:10px; color:#fff; font-size:0.95rem; outline:none; }
+.add-friend-box button { padding:10px 16px; background:#6c63ff; border:none; border-radius:10px; color:#fff; font-weight:700; cursor:pointer; white-space:nowrap; }
+.section-lbl { font-size:0.75rem; color:#888; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px; margin-top:4px; }
+.friend-item { display:flex; align-items:center; gap:12px; padding:12px; background:#1a1a2e; border-radius:12px; margin-bottom:8px; }
+.friend-avatar { width:40px; height:40px; border-radius:50%; background:#6c63ff44; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1rem; color:#6c63ff; flex-shrink:0; }
+.friend-info { flex:1; }
+.friend-name { font-weight:700; font-size:0.95rem; }
+.friend-id { font-size:0.75rem; color:#888; }
+.friend-actions { display:flex; gap:6px; }
+.sm-btn { padding:6px 12px; border:none; border-radius:8px; font-size:0.8rem; font-weight:600; cursor:pointer; }
+.sm-btn-primary { background:#6c63ff; color:#fff; }
+.sm-btn-success { background:#2ecc71; color:#fff; }
+.sm-btn-danger { background:#e74c3c; color:#fff; }
+.request-item { display:flex; align-items:center; gap:12px; padding:12px; background:#1a1a2e; border:1px solid #6c63ff44; border-radius:12px; margin-bottom:8px; }
+
+/* CHAT PANEL */
+.chat-list-item { display:flex; align-items:center; gap:12px; padding:12px; border-radius:12px; cursor:pointer; margin-bottom:4px; }
+.chat-list-item:hover, .chat-list-item.active { background:#1a1a2e; }
+.chat-list-item .last-msg { font-size:0.78rem; color:#888; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.unread-dot { width:8px; height:8px; background:#6c63ff; border-radius:50%; flex-shrink:0; }
+
+/* CHAT WINDOW */
+#chatWindow { display:none; flex-direction:column; flex:1; }
+#chatWindow.open { display:flex; }
+.chat-top { padding:14px 16px; border-bottom:1px solid #2a2a4a; display:flex; align-items:center; gap:12px; flex-shrink:0; }
+.back-btn { background:none; border:none; color:#6c63ff; font-size:1.2rem; cursor:pointer; padding:4px; }
+.messages-area { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; }
+.msg { max-width:75%; padding:10px 14px; border-radius:14px; font-size:0.92rem; line-height:1.4; }
+.msg.mine { background:#6c63ff; color:#fff; border-bottom-right-radius:4px; align-self:flex-end; }
+.msg.theirs { background:#1a1a2e; color:#fff; border-bottom-left-radius:4px; align-self:flex-start; }
+.msg-time { font-size:0.68rem; opacity:0.6; margin-top:4px; }
+.chat-input-row { display:flex; gap:8px; padding:12px 16px; border-top:1px solid #2a2a4a; flex-shrink:0; }
+.chat-input-row input { flex:1; padding:10px 14px; background:#1a1a2e; border:1px solid #2a2a4a; border-radius:20px; color:#fff; font-size:0.95rem; outline:none; }
+.chat-input-row button { width:40px; height:40px; background:#6c63ff; border:none; border-radius:50%; color:#fff; font-size:1.2rem; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+
+/* GAMES PANEL */
+.games-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.game-card { background:#1a1a2e; border:2px solid #2a2a4a; border-radius:14px; padding:20px 16px; text-align:center; cursor:pointer; }
+.game-card:hover { border-color:#6c63ff; }
+.game-card.soon { opacity:0.4; cursor:not-allowed; }
+.game-card .icon { font-size:2rem; margin-bottom:8px; }
+.game-card .gname { font-weight:700; font-size:0.9rem; }
+.badge { display:inline-block; margin-top:6px; font-size:0.7rem; padding:2px 8px; border-radius:20px; background:#6c63ff22; color:#6c63ff; }
+.badge.soon { background:#88888822; color:#888; }
+
+/* XO GAME */
+#xoPanel { padding:0; }
+.game-wrap { padding:16px; display:flex; flex-direction:column; align-items:center; }
+.scoreboard { display:flex; gap:10px; width:100%; max-width:360px; margin-bottom:14px; }
+.score-card { flex:1; background:#1a1a2e; border:2px solid #2a2a4a; border-radius:10px; padding:10px; text-align:center; }
+.score-card.active { border-color:#6c63ff; }
+.score-card .sname { font-size:0.75rem; color:#888; }
+.score-card .sval { font-size:1.6rem; font-weight:900; margin-top:4px; }
+.score-card.xc .sval { color:#6c63ff; }
+.score-card.oc .sval { color:#e74c3c; }
+.status-bar { background:#1a1a2e; border-radius:10px; padding:10px 16px; text-align:center; margin-bottom:14px; font-size:0.9rem; width:100%; max-width:360px; }
+.board { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; width:100%; max-width:300px; margin-bottom:16px; }
+.cell { aspect-ratio:1; background:#1a1a2e; border:2px solid #2a2a4a; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:2rem; font-weight:900; cursor:pointer; }
+.cell:hover:not(.taken) { border-color:#6c63ff; }
+.cell.x { color:#6c63ff; }
+.cell.o { color:#e74c3c; }
+.cell.win { background:#6c63ff22; border-color:#6c63ff; }
+.game-btns { display:flex; flex-direction:column; gap:8px; width:100%; max-width:300px; }
+
+/* WAITING */
+#waitPanel { align-items:center; justify-content:center; }
+.wait-code { font-size:2.8rem; font-weight:900; color:#6c63ff; letter-spacing:6px; background:#1a1a2e; border:2px dashed #6c63ff44; border-radius:14px; padding:18px 28px; margin:16px 0; animation:pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+
+/* UTILS */
+.mt8 { margin-top:8px; }
+.empty-state { text-align:center; color:#555; padding:40px 20px; font-size:0.9rem; }
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="authScreen" class="screen active">
+  <div class="logo">Poly<span>Players</span></div>
+  <div class="tagline">Chat. Play. Connect.</div>
+  <div class="auth-box">
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Log In</button>
+      <button class="auth-tab" onclick="switchTab('signup')">Sign Up</button>
+    </div>
+    <div id="loginForm">
+      <div class="inp-grp"><label>Username</label><input id="loginUser" placeholder="your username"></div>
+      <div class="inp-grp"><label>Password</label><input id="loginPass" type="password" placeholder="••••••••"></div>
+      <button class="btn btn-primary" onclick="login()">Log In</button>
+    </div>
+    <div id="signupForm" style="display:none">
+      <div class="inp-grp"><label>Username</label><input id="signupUser" placeholder="choose a username"></div>
+      <div class="inp-grp"><label>Password</label><input id="signupPass" type="password" placeholder="at least 6 characters"></div>
+      <button class="btn btn-primary" onclick="signup()">Create Account</button>
+    </div>
+    <div class="err" id="authErr"></div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="appScreen" class="screen">
+  <div class="app-layout">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div style="font-size:1.2rem;font-weight:900;color:#6c63ff;margin-bottom:8px">P</div>
+      <button class="nav-btn active" id="navProfile" onclick="showPanel('profile')" title="Profile">👤</button>
+      <button class="nav-btn" id="navFriends" onclick="showPanel('friends')" title="Friends">
+        👥<span class="nav-badge" id="reqBadge" style="display:none">0</span>
+      </button>
+      <button class="nav-btn" id="navChat" onclick="showPanel('chat')" title="Messages">
+        💬<span class="nav-badge" id="msgBadge" style="display:none">0</span>
+      </button>
+      <button class="nav-btn" id="navGames" onclick="showPanel('games')" title="Games">🎮</button>
+      <div style="flex:1"></div>
+      <button class="nav-btn" onclick="logout()" title="Log Out">🚪</button>
+    </div>
+
+    <!-- PROFILE PANEL -->
+    <div class="panel active" id="profilePanel">
+      <div class="panel-header"><h2>My Profile</h2></div>
+      <div class="panel-content">
+        <div class="profile-card">
+          <div class="avatar" id="profAvatar">?</div>
+          <div class="profile-name" id="profName">—</div>
+          <div class="profile-polyid" id="profPolyId">—</div>
+          <div class="stats-row">
+            <div class="stat w"><div class="val" id="profWins">0</div><div class="lbl">Wins</div></div>
+            <div class="stat l"><div class="val" id="profLosses">0</div><div class="lbl">Losses</div></div>
+            <div class="stat d"><div class="val" id="profDraws">0</div><div class="lbl">Draws</div></div>
+          </div>
+        </div>
+        <div class="share-row">
+          <div class="info">
+            <div class="lbl">Your PolyPlayers ID</div>
+            <div class="id" id="shareId">—</div>
+          </div>
+          <button class="copy-btn" onclick="copyId()">Copy ID</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FRIENDS PANEL -->
+    <div class="panel" id="friendsPanel">
+      <div class="panel-header"><h2>Friends</h2></div>
+      <div class="panel-content">
+        <div class="add-friend-box">
+          <input id="addFriendInput" placeholder="Enter POLY# ID (e.g. POLY#1234)">
+          <button onclick="sendFriendRequest()">Add</button>
+        </div>
+        <div class="err" id="friendErr"></div>
+        <div id="requestsSection" style="display:none">
+          <div class="section-lbl">Friend Requests</div>
+          <div id="requestsList"></div>
+        </div>
+        <div class="section-lbl" style="margin-top:8px">My Friends</div>
+        <div id="friendsList"><div class="empty-state">No friends yet.<br>Add someone with their POLY# ID!</div></div>
+      </div>
+    </div>
+
+    <!-- CHAT PANEL -->
+    <div class="panel" id="chatPanel">
+      <!-- Chat list -->
+      <div id="chatList" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+        <div class="panel-header"><h2>Messages</h2></div>
+        <div class="panel-content" id="chatListContent">
+          <div class="empty-state" id="chatEmpty">Add friends to start chatting!</div>
+        </div>
+      </div>
+      <!-- Chat window -->
+      <div id="chatWindow">
+        <div class="chat-top">
+          <button class="back-btn" onclick="closeChat()">←</button>
+          <div class="friend-avatar" id="chatAvatar">?</div>
+          <div>
+            <div style="font-weight:700" id="chatName">—</div>
+            <div style="font-size:0.75rem;color:#888" id="chatPolyId">—</div>
+          </div>
+        </div>
+        <div class="messages-area" id="messagesArea"></div>
+        <div class="chat-input-row">
+          <input id="msgInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendMessage()">
+          <button onclick="sendMessage()">➤</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GAMES PANEL -->
+    <div class="panel" id="gamesPanel">
+      <div class="panel-header"><h2>Games</h2></div>
+      <div class="panel-content">
+        <div class="games-grid">
+          <div class="game-card" onclick="openXO()">
+            <div class="icon">⭕</div>
+            <div class="gname">XO</div>
+            <div class="badge">2 Players</div>
+          </div>
+          <div class="game-card soon">
+            <div class="icon">🚗</div>
+            <div class="gname">Car Race</div>
+            <div class="badge soon">Soon</div>
+          </div>
+          <div class="game-card soon">
+            <div class="icon">🟢</div>
+            <div class="gname">Red Light</div>
+            <div class="badge soon">Soon</div>
+          </div>
+          <div class="game-card soon">
+            <div class="icon">🃏</div>
+            <div class="gname">UNO</div>
+            <div class="badge soon">Soon</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- XO PANEL -->
+    <div class="panel" id="xoPanel">
+      <div class="panel-header">
+        <h2>XO Game</h2>
+        <button class="sm-btn sm-btn-primary" onclick="showPanel('games')">← Back</button>
+      </div>
+      <div class="game-wrap">
+        <div style="display:flex;gap:8px;margin-bottom:16px;width:100%;max-width:300px">
+          <button class="btn btn-primary" onclick="createRoom()" style="flex:1">Create Room</button>
+        </div>
+        <div style="display:flex;gap:8px;width:100%;max-width:300px;margin-bottom:8px">
+          <input id="joinCode" placeholder="Room code" maxlength="5" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #2a2a4a;border-radius:10px;color:#fff;text-align:center;letter-spacing:4px;text-transform:uppercase;font-size:1rem;outline:none">
+          <button class="btn btn-secondary" onclick="joinRoom()" style="width:auto;padding:10px 16px">Join</button>
+        </div>
+        <div class="err" id="xoErr"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- WAITING SCREEN -->
+<div id="waitPanel" class="screen">
+  <div style="text-align:center">
+    <div style="font-size:1.3rem;font-weight:800;margin-bottom:8px">Waiting for opponent...</div>
+    <div class="wait-code" id="waitCode">—</div>
+    <div style="color:#888;font-size:0.85rem;margin-bottom:16px">Share this code with your friend</div>
+    <button class="copy-btn" onclick="copyRoomCode()" style="margin-bottom:12px">Copy Code</button>
+    <br><br>
+    <button class="btn btn-secondary" style="max-width:260px" onclick="cancelWait()">Cancel</button>
+  </div>
+</div>
+
+<!-- XO GAME SCREEN -->
+<div id="xoGameScreen" class="screen">
+  <div style="padding:14px 16px;border-bottom:1px solid #2a2a4a;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="font-weight:800">XO Game</div>
+      <div style="font-size:0.78rem;color:#6c63ff">Room: <span id="xoCode">—</span></div>
+    </div>
+    <button class="sm-btn sm-btn-danger" onclick="leaveGame()">Leave</button>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;padding:16px;overflow-y:auto">
+    <div class="scoreboard">
+      <div class="score-card xc" id="xCard">
+        <div class="sname" id="xName">Player X</div>
+        <div class="sval" id="xScore">0</div>
+      </div>
+      <div style="display:flex;align-items:center;color:#888;font-size:0.85rem">VS</div>
+      <div class="score-card oc" id="oCard">
+        <div class="sname" id="oName">Player O</div>
+        <div class="sval" id="oScore">0</div>
+      </div>
+    </div>
+    <div class="status-bar" id="xoStatus">Waiting...</div>
+    <div class="board" id="xoBoard"></div>
+    <div class="game-btns">
+      <button class="btn btn-primary" id="rematchBtn" onclick="rematch()" style="display:none">Rematch</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SERVER = 'https://xo-opuu.onrender.com';
+let socket, currentPlayer, mySymbol, roomCode;
+let gameActive = false;
+let activeChatFriend = null;
+let friends = [];
+let unreadCounts = {};
+
+// ── INIT ──
+window.onload = () => {
+  const token = localStorage.getItem('pp_token');
+  const p = localStorage.getItem('pp_player');
+  if (token && p) {
+    currentPlayer = JSON.parse(p);
+    connectSocket(token);
+    showApp();
+  }
+};
+
+// ── SOCKET ──
+function connectSocket(token) {
+  if (socket) socket.disconnect();
+  socket = io(SERVER, { transports: ['websocket','polling'] });
+  socket.on('connect', () => socket.emit('authenticate', token));
+  socket.on('authenticated', p => { currentPlayer = p; localStorage.setItem('pp_player', JSON.stringify(p)); updateProfileUI(); });
+  socket.on('auth-error', logout);
+
+  socket.on('friend-request', data => {
+    let count = parseInt(document.getElementById('reqBadge').textContent || '0') + 1;
+    document.getElementById('reqBadge').textContent = count;
+    document.getElementById('reqBadge').style.display = 'flex';
+    loadFriends();
+  });
+
+  socket.on('friend-accepted', data => {
+    loadFriends();
+  });
+
+  socket.on('new-message', msg => {
+    if (activeChatFriend && activeChatFriend.id === msg.sender_id) {
+      appendMessage(msg, false);
+    } else {
+      unreadCounts[msg.sender_id] = (unreadCounts[msg.sender_id] || 0) + 1;
+      let total = Object.values(unreadCounts).reduce((a,b) => a+b, 0);
+      document.getElementById('msgBadge').textContent = total;
+      document.getElementById('msgBadge').style.display = 'flex';
+      renderChatList();
+    }
+  });
+
+  socket.on('room-created', ({ roomCode: rc }) => {
+    roomCode = rc;
+    document.getElementById('waitCode').textContent = rc;
+    showScreen('waitPanel');
+  });
+
+  socket.on('room-joined', ({ roomCode: rc, symbol }) => {
+    roomCode = rc; mySymbol = symbol;
+    document.getElementById('xoCode').textContent = rc;
+  });
+
+  socket.on('game-start', ({ board, currentTurn, scores, players }) => {
+    gameActive = true;
+    document.getElementById('xoCode').textContent = roomCode;
+    if (players && players[0]) document.getElementById('xName').textContent = players[0];
+    if (players && players[1]) document.getElementById('oName').textContent = players[1];
+    updateScore(scores); renderBoard(board); updateTurn(currentTurn);
+    document.getElementById('rematchBtn').style.display = 'none';
+    showScreen('xoGameScreen');
+  });
+
+  socket.on('board-update', ({ board, currentTurn }) => { renderBoard(board); updateTurn(currentTurn); });
+  socket.on('game-over', ({ board, result, scores }) => {
+    gameActive = false; renderBoard(board, result.line || []);
+    updateScore(scores);
+    document.getElementById('xoStatus').textContent = result.winner === 'draw' ? "It's a draw! 🤝" : result.winner === mySymbol ? '🎉 You win!' : '😔 You lose!';
+    document.getElementById('rematchBtn').style.display = 'block';
+  });
+  socket.on('rematch-waiting', () => document.getElementById('xoStatus').textContent = 'Waiting for opponent...');
+  socket.on('player-left', () => { gameActive = false; document.getElementById('xoStatus').textContent = 'Opponent left.'; });
+  socket.on('error', msg => { document.getElementById('xoErr').textContent = msg; });
+}
+
+// ── AUTH ──
+function switchTab(tab) {
+  document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('signupForm').style.display = tab === 'signup' ? 'block' : 'none';
+  document.querySelectorAll('.auth-tab').forEach((t,i) => t.classList.toggle('active', i === (tab === 'login' ? 0 : 1)));
+  document.getElementById('authErr').textContent = '';
+}
+
+async function signup() {
+  const username = document.getElementById('signupUser').value.trim();
+  const password = document.getElementById('signupPass').value;
+  document.getElementById('authErr').textContent = '';
+  try {
+    const res = await fetch(`${SERVER}/auth/signup`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,password}) });
+    const data = await res.json();
+    if (!res.ok) return document.getElementById('authErr').textContent = data.error;
+    saveAndConnect(data);
+  } catch(e) { document.getElementById('authErr').textContent = 'Cannot reach server.'; }
+}
+
+async function login() {
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  document.getElementById('authErr').textContent = '';
+  try {
+    const res = await fetch(`${SERVER}/auth/login`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,password}) });
+    const data = await res.json();
+    if (!res.ok) return document.getElementById('authErr').textContent = data.error;
+    saveAndConnect(data);
+  } catch(e) { document.getElementById('authErr').textContent = 'Cannot reach server.'; }
+}
+
+function saveAndConnect({token, player}) {
+  localStorage.setItem('pp_token', token);
+  localStorage.setItem('pp_player', JSON.stringify(player));
+  currentPlayer = player;
+  connectSocket(token);
+  showApp();
+}
+
+function logout() {
+  localStorage.clear();
+  if (socket) socket.disconnect();
+  currentPlayer = null;
+  showScreen('authScreen');
+}
+
+// ── APP ──
+function showApp() {
+  showScreen('appScreen');
+  updateProfileUI();
+  loadFriends();
+}
+
+function updateProfileUI() {
+  if (!currentPlayer) return;
+  const name = currentPlayer.display_name || currentPlayer.username;
+  document.getElementById('profAvatar').textContent = name[0].toUpperCase();
+  document.getElementById('profName').textContent = name;
+  document.getElementById('profPolyId').textContent = currentPlayer.poly_id;
+  document.getElementById('shareId').textContent = currentPlayer.poly_id;
+  document.getElementById('profWins').textContent = currentPlayer.wins || 0;
+  document.getElementById('profLosses').textContent = currentPlayer.losses || 0;
+  document.getElementById('profDraws').textContent = currentPlayer.draws || 0;
+}
+
+function copyId() {
+  navigator.clipboard.writeText(currentPlayer.poly_id);
+  const btn = document.querySelector('.copy-btn');
+  btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = 'Copy ID', 2000);
+}
+
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(name + 'Panel').classList.add('active');
+  document.getElementById('nav' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+  if (name === 'chat') { closeChat(); renderChatList(); }
+}
+
+// ── FRIENDS ──
+async function loadFriends() {
+  const token = localStorage.getItem('pp_token');
+  try {
+    const [fRes, rRes] = await Promise.all([
+      fetch(`${SERVER}/friends`, { headers:{ Authorization:`Bearer ${token}` } }),
+      fetch(`${SERVER}/friends/requests`, { headers:{ Authorization:`Bearer ${token}` } })
+    ]);
+    friends = await fRes.json();
+    const requests = await rRes.json();
+    renderFriends(friends, requests);
+    renderChatList();
+  } catch(e) {}
+}
+
+function renderFriends(friends, requests) {
+  const reqSection = document.getElementById('requestsSection');
+  const reqList = document.getElementById('requestsList');
+  const friendsList = document.getElementById('friendsList');
+
+  if (requests && requests.length > 0) {
+    reqSection.style.display = 'block';
+    document.getElementById('reqBadge').textContent = requests.length;
+    document.getElementById('reqBadge').style.display = 'flex';
+    reqList.innerHTML = requests.map(r => `
+      <div class="request-item">
+        <div class="friend-avatar">${r.requester.display_name[0].toUpperCase()}</div>
+        <div class="friend-info">
+          <div class="friend-name">${r.requester.display_name}</div>
+          <div class="friend-id">${r.requester.poly_id}</div>
+        </div>
+        <div class="friend-actions">
+          <button class="sm-btn sm-btn-success" onclick="acceptRequest('${r.requester.id}')">✓</button>
+          <button class="sm-btn sm-btn-danger" onclick="declineRequest('${r.requester.id}')">✕</button>
+        </div>
+      </div>`).join('');
+  } else {
+    reqSection.style.display = 'none';
+    document.getElementById('reqBadge').style.display = 'none';
+  }
+
+  if (!friends || friends.length === 0) {
+    friendsList.innerHTML = '<div class="empty-state">No friends yet.<br>Add someone with their POLY# ID!</div>';
+    return;
+  }
+  friendsList.innerHTML = friends.map(f => `
+    <div class="friend-item">
+      <div class="friend-avatar">${f.display_name[0].toUpperCase()}</div>
+      <div class="friend-info">
+        <div class="friend-name">${f.display_name}</div>
+        <div class="friend-id">${f.poly_id}</div>
+      </div>
+      <div class="friend-actions">
+        <button class="sm-btn sm-btn-primary" onclick="openChatWith('${f.id}','${f.display_name}','${f.poly_id}')">💬</button>
+      </div>
+    </div>`).join('');
+}
+
+async function sendFriendRequest() {
+  const polyId = document.getElementById('addFriendInput').value.trim();
+  document.getElementById('friendErr').textContent = '';
+  if (!polyId) return;
+  const token = localStorage.getItem('pp_token');
+  try {
+    const res = await fetch(`${SERVER}/friends/request`, { method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`}, body:JSON.stringify({poly_id: polyId}) });
+    const data = await res.json();
+    if (!res.ok) return document.getElementById('friendErr').textContent = data.error;
+    document.getElementById('addFriendInput').value = '';
+    document.getElementById('friendErr').style.color = '#2ecc71';
+    document.getElementById('friendErr').textContent = data.message;
+    setTimeout(() => { document.getElementById('friendErr').textContent = ''; document.getElementById('friendErr').style.color = '#e74c3c'; }, 3000);
+  } catch(e) { document.getElementById('friendErr').textContent = 'Error sending request'; }
+}
+
+async function acceptRequest(requesterId) {
+  const token = localStorage.getItem('pp_token');
+  await fetch(`${SERVER}/friends/accept`, { method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`}, body:JSON.stringify({requester_id: requesterId}) });
+  loadFriends();
+}
+
+async function declineRequest(requesterId) {
+  const token = localStorage.getItem('pp_token');
+  await fetch(`${SERVER}/friends/decline`, { method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`}, body:JSON.stringify({requester_id: requesterId}) });
+  loadFriends();
+}
+
+// ── CHAT ──
+function renderChatList() {
+  const content = document.getElementById('chatListContent');
+  if (!friends || friends.length === 0) {
+    document.getElementById('chatEmpty').style.display = 'block';
+    return;
+  }
+  document.getElementById('chatEmpty').style.display = 'none';
+  content.innerHTML = friends.map(f => `
+    <div class="chat-list-item" onclick="openChatWith('${f.id}','${f.display_name}','${f.poly_id}')">
+      <div class="friend-avatar">${f.display_name[0].toUpperCase()}</div>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:0.95rem">${f.display_name}</div>
+        <div class="last-msg">${f.poly_id}</div>
+      </div>
+      ${unreadCounts[f.id] ? `<div class="unread-dot"></div>` : ''}
+    </div>`).join('');
+}
+
+async function openChatWith(friendId, friendName, friendPolyId) {
+  activeChatFriend = { id: friendId, name: friendName, poly_id: friendPolyId };
+  document.getElementById('chatList').style.display = 'none';
+  document.getElementById('chatWindow').classList.add('open');
+  document.getElementById('chatAvatar').textContent = friendName[0].toUpperCase();
+  document.getElementById('chatName').textContent = friendName;
+  document.getElementById('chatPolyId').textContent = friendPolyId;
+  document.getElementById('messagesArea').innerHTML = '';
+  delete unreadCounts[friendId];
+  let total = Object.values(unreadCounts).reduce((a,b) => a+b, 0);
+  document.getElementById('msgBadge').textContent = total;
+  document.getElementById('msgBadge').style.display = total > 0 ? 'flex' : 'none';
+
+  const token = localStorage.getItem('pp_token');
+  try {
+    const res = await fetch(`${SERVER}/messages/${friendId}`, { headers:{ Authorization:`Bearer ${token}` } });
+    const messages = await res.json();
+    messages.forEach(msg => appendMessage(msg, msg.sender_id === currentPlayer.id));
+    scrollToBottom();
+  } catch(e) {}
+
+  showPanel('chat');
+}
+
+function closeChat() {
+  activeChatFriend = null;
+  document.getElementById('chatList').style.display = 'flex';
+  document.getElementById('chatList').style.flexDirection = 'column';
+  document.getElementById('chatWindow').classList.remove('open');
+}
+
+function appendMessage(msg, isMine) {
+  const area = document.getElementById('messagesArea');
+  const div = document.createElement('div');
+  div.className = 'msg ' + (isMine ? 'mine' : 'theirs');
+  const time = new Date(msg.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  div.innerHTML = `${msg.content}<div class="msg-time">${time}</div>`;
+  area.appendChild(div);
+  scrollToBottom();
+}
+
+function scrollToBottom() {
+  const area = document.getElementById('messagesArea');
+  area.scrollTop = area.scrollHeight;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('msgInput');
+  const content = input.value.trim();
+  if (!content || !activeChatFriend) return;
+  input.value = '';
+  const token = localStorage.getItem('pp_token');
+  try {
+    const res = await fetch(`${SERVER}/messages/send`, { method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`}, body:JSON.stringify({receiver_id: activeChatFriend.id, content}) });
+    const data = await res.json();
+    if (data.success) appendMessage(data.message, true);
+  } catch(e) {}
+}
+
+// ── XO GAME ──
+function openXO() { showPanel('xo'); }
+
+function createRoom() {
+  if (!socket?.connected) return alert('Not connected. Please wait.');
+  mySymbol = 'X';
+  socket.emit('create-room');
+}
+
+function joinRoom() {
+  const code = document.getElementById('joinCode').value.trim().toUpperCase();
+  if (code.length < 3) return document.getElementById('xoErr').textContent = 'Enter a valid room code';
+  mySymbol = 'O';
+  socket.emit('join-room', code);
+}
+
+function cancelWait() {
+  if (socket) { socket.disconnect(); connectSocket(localStorage.getItem('pp_token')); }
+  showPanel('xo'); showScreen('appScreen');
+}
+
+function copyRoomCode() {
+  navigator.clipboard.writeText(roomCode);
+}
+
+function renderBoard(board, winLine = []) {
+  const el = document.getElementById('xoBoard');
+  el.innerHTML = '';
+  board.forEach((cell, i) => {
+    const d = document.createElement('div');
+    d.className = 'cell' + (cell ? ` ${cell.toLowerCase()} taken` : '') + (winLine.includes(i) ? ' win' : '');
+    d.textContent = cell || '';
+    if (!cell && gameActive) d.onclick = () => socket.emit('make-move', i);
+    el.appendChild(d);
+  });
+}
+
+function updateTurn(turn) {
+  document.getElementById('xoStatus').textContent = turn === mySymbol ? '✨ Your turn!' : "Opponent's turn...";
+  document.getElementById('xCard').classList.toggle('active', turn === 'X');
+  document.getElementById('oCard').classList.toggle('active', turn === 'O');
+}
+
+function updateScore(scores) {
+  document.getElementById('xScore').textContent = scores.X;
+  document.getElementById('oScore').textContent = scores.O;
+}
+
+function rematch() { socket.emit('rematch'); document.getElementById('rematchBtn').style.display = 'none'; }
+function leaveGame() { showScreen('appScreen'); showPanel('games'); }
+
+// ── SCREENS ──
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+</script>
+</body>
+</html>
